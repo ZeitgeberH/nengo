@@ -76,9 +76,20 @@ class SignalDict(dict):
             sio.write("%s %s\n" % (repr(k), repr(self[k])))
         return sio.getvalue()
 
-    def init(self, signal, ndarray):
+    def reset(self, signal):
+        """Reset ndarray to the base value of the signal that maps to it"""
+        self.__getitem__(signal.base)[...] = self._get_base_array(signal)
+
+    def init(self, signal):
         """Set up a permanent mapping from signal -> ndarray."""
-        dict.__setitem__(self, signal, ndarray)
+        dict.__setitem__(self, signal, self._get_base_array(signal))
+
+    def _get_base_array(self, signal):
+        """Get the base array of a signal"""
+        base = np.zeros(signal.base.shape,
+                        dtype=signal.base.dtype) + signal.base.value
+        print (base)
+        return np.asarray(base)
 
 
 class ProbeDict(Mapping):
@@ -224,6 +235,20 @@ class Simulator(object):
             if i % 1000 == 0:
                 logger.debug("Step %d", i)
             self.step()
+
+    def reset(self):
+        """Reset the simulator state"""
+
+        self.signals['__time__'][...] = 0.0
+        self.n_steps = 0
+
+        for key in self.signals.keys():
+            print(key)
+            if key != '__time__':
+                self.signals.reset(key)
+
+        for probe in self.model.probes:
+            self._probe_outputs[probe] = []
 
     def trange(self, dt=None):
         dt = self.dt if dt is None else dt
