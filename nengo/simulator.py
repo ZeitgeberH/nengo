@@ -88,7 +88,6 @@ class SignalDict(dict):
         """Get the base array of a signal"""
         base = np.zeros(signal.base.shape,
                         dtype=signal.base.dtype) + signal.base.value
-        print (base)
         return np.asarray(base)
 
 
@@ -243,7 +242,6 @@ class Simulator(object):
         self.n_steps = 0
 
         for key in self.signals.keys():
-            print(key)
             if key != '__time__':
                 self.signals.reset(key)
 
