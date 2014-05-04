@@ -397,7 +397,9 @@ class Operator(object):
         """
         for sig in self.all_signals:
             if sig.base not in signals:
+                print sig
                 signals.init(sig)
+
 
 
 class Reset(Operator):

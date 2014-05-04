@@ -82,7 +82,7 @@ class SignalDict(dict):
 
     def init(self, signal):
         """Set up a permanent mapping from signal -> ndarray."""
-        dict.__setitem__(self, signal, self._get_base_array(signal))
+        dict.__setitem__(self, signal.base, self._get_base_array(signal))
 
     def _get_base_array(self, signal):
         """Get the base array of a signal"""
