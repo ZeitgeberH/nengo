@@ -9,6 +9,7 @@ import nengo.utils.numpy as npext
 from nengo.utils.compat import (
     is_callable, is_iterable, with_metaclass)
 from nengo.utils.distributions import Uniform
+from nengo.utils.inspect import checked_call
 
 logger = logging.getLogger(__name__)
 
@@ -392,7 +393,7 @@ class Node(NengoObject):
         The number of output dimensions.
     """
 
-    def __init__(self, output=None, size_in=0, size_out=None, label="Node"):
+    def __init__(self, output=None, size_in=0, size_out=None, label="Node"):  # noqa: C901
         if output is not None and not is_callable(output):
             output = npext.array(output, min_dims=1, copy=False)
         self.output = output
@@ -400,23 +401,19 @@ class Node(NengoObject):
         self.size_in = size_in
 
         if output is not None:
+            if size_in != 0 and not is_callable(output):
+                raise TypeError("output must be callable if size_in != 0")
             if isinstance(output, np.ndarray):
                 shape_out = output.shape
             elif size_out is None and is_callable(output):
                 t, x = np.asarray(0.0), np.zeros(size_in)
                 args = [t, x] if size_in > 0 else [t]
-                try:
-                    result = output(*args)
-                except TypeError:
-                    raise TypeError(
-                        "The function '%s' provided to '%s' takes %d "
-                        "argument(s), where a function for this type "
-                        "of node is expected to take %d argument(s)" % (
-                            output.__name__, self,
-                            output.__code__.co_argcount, len(args)))
-
-                shape_out = (0,) if result is None \
-                    else np.asarray(result).shape
+                value, invoked = checked_call(output, *args)
+                if not invoked:
+                    raise TypeError("output function '%s' must accept "
+                                    "%d arguments" % (output, len(args)))
+                shape_out = (0,) if value is None \
+                    else np.asarray(value).shape
             else:
                 shape_out = (size_out,)  # assume `size_out` is correct
 
@@ -538,11 +535,6 @@ class Connection(NengoObject):
         self._skip_check_shapes = False
         self._check_shapes()
 
-    def _check_pre_ensemble(self, prop_name):
-        if not isinstance(self._pre, Ensemble):
-            raise ValueError("'%s' can only be set if 'pre' is an Ensemble" %
-                             prop_name)
-
     def _pad_transform(self, transform):
         """Pads the transform with zeros according to the pre/post slices."""
         if self._preslice == slice(None) and self._postslice == slice(None):
@@ -648,10 +640,18 @@ class Connection(NengoObject):
     @function.setter
     def function(self, _function):
         if _function is not None:
-            self._check_pre_ensemble('function')
+            if not isinstance(self._pre, Ensemble):
+                raise ValueError("function '%s' can only be set if 'pre' is "
+                                 "an Ensemble" % _function)
+            if not is_callable(_function):
+                raise TypeError("function '%s' must be callable" % _function)
             x = (self.eval_points[0] if is_iterable(self.eval_points) else
                  np.zeros(self._pre.dimensions))
-            size = np.asarray(_function(x)).size
+            value, invoked = checked_call(_function, x)
+            if not invoked:
+                raise TypeError("function '%s' must accept a single "
+                                "np.array argument" % _function)
+            size = np.asarray(value).size
         else:
             size = 0
 
